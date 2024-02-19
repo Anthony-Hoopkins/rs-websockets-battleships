@@ -1,0 +1,9 @@
+
+# Distribution / packaging
+
+build/
+dist/
+downloads/
+
+.idea/
+node_modules/
