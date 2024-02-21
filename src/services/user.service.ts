@@ -1,7 +1,9 @@
-import { DB, DBEntities, Users } from '../db/db';
-import { ErrorResp, RequestedUser, ResponseUser } from './user.dto';
+import { DBEntities, getDatabaseEntity, User } from '../db/db';
+import { RequestedUser, ResponseUser, UserDto } from './dto/user.dto';
+import { ErrorResp } from './dto/error.dto';
 
-const USERS: Users[] = DB[DBEntities.Users];
+// const USERS: User[] = DB[DBEntities.Users];
+const USERS: User[] = getDatabaseEntity(DBEntities.Users) as User[];
 
 export class UserService {
   registrationOrLogin(user: RequestedUser): ResponseUser | ErrorResp {
@@ -30,7 +32,7 @@ export class UserService {
     }
   }
 
-  getAllUsers(): RequestedUser[] {
+  getAllUsers(): UserDto[] {
     return USERS;
   }
 }
