@@ -21,7 +21,7 @@ export class RoomService {
   }
 
   createNewRoom(user: UserDto): ErrorResp {
-    const roomId = ROOMS.length;
+    const roomId = crypto.randomUUID();
     const isAlreadyInRoom = ROOMS.find((room) => {
       return room.roomUsers.find(roomUser => roomUser.index === user.index);
     });
@@ -38,14 +38,29 @@ export class RoomService {
   addUserToRoom(user: UserDto, roomData: AddToRoomDto): ErrorResp | respRoomDto {
     const room = ROOMS.find((room) => room.roomId === roomData.indexRoom);
 
-    const isAlreadyInRoom = room.roomUsers.find(roomUser => roomUser.index === user.index);
+    const isAlreadyInRoom = room?.roomUsers.find(roomUser => roomUser.index === user.index);
 
     if (!isAlreadyInRoom) {
-      room.roomUsers.push(user);
+      this.removeRoomIfHasOwn(user.index);
+      room?.roomUsers.push(user);
 
       return room;
     }
 
     return { error: true, errorText: 'This user already in room' };
+  }
+
+  getCompetitorIdFromRoom(currentIndex: string, room: respRoomDto): string {
+    return room.roomUsers.find((user: UserDto) => user.index !== currentIndex)?.index;
+  }
+
+  private removeRoomIfHasOwn(index: string): void {
+    const roomIndex = ROOMS.findIndex((room) => {
+      return room.roomUsers.find((user) => user.index === index);
+    });
+
+    if (roomIndex >= 0) {
+      ROOMS.splice(roomIndex, 1);
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { DB, DBEntities, Game, getDatabaseEntity } from '../db/db';
+import { DB, DBEntities, Game, getDatabaseEntity, PlayerShips } from '../db/db';
 import { AddShipsDto, AttackDto, AttackRespDto, AttackStatus, Coords } from './dto/game.dto';
 import * as fs from 'fs';
 
@@ -8,7 +8,7 @@ const GAMES: Game[] = getDatabaseEntity(DBEntities.Games) as Game[];
 
 export class GameService {
 
-  createNewGame(userIndex: number) {
+  createNewGame(userIndex: string) {
     const idGame = crypto.randomUUID();
     const newGame: Game = { idGame, idPlayer: userIndex, playerShips: [], status: 'created' };
     GAMES.push(newGame);
@@ -18,17 +18,20 @@ export class GameService {
 
   addShipsToGame(data: AddShipsDto): boolean {
     const game = GAMES.find((game) => game.idGame === data.gameId);
-    const isTwoPlayersShipsAlreadyDone = game.playerShips?.length > 0;
-    game.playerShips.push(data);
+    const isTwoPlayersShipsAlreadyDone = game?.playerShips?.length > 0;
+    game?.playerShips.push(data);
 
     return isTwoPlayersShipsAlreadyDone;
   }
 
   startNewGame(gameId: string): any {
     const game: Game = GAMES.find((game) => game.idGame === gameId);
-    game.status = 'going';
 
-    fs.writeFileSync('/Users/anthonies_mac/projects/BACKENDS/RSnode/rs-websockets-battleships/src/accets/db.json', JSON.stringify(DB)); // for debug purposes
+    if (game?.status) {
+      game.status = 'going';
+    }
+
+    fs.writeFileSync('/Users/anthonies_mac/projects/BACKENDS/RSnode/rs-websockets-battleships/src/accets/db.json', JSON.stringify(DB)); // todo for debug purposes
     return game;
   }
 
@@ -52,7 +55,7 @@ export class GameService {
     return attackResp;
   }
 
-  setTurnToGame(gameId: string, turnId: number): void {
+  setTurnToGame(gameId: string, turnId: string): void {
     const game = this.getGameById(gameId);
     game.turnId = turnId;
   }
@@ -69,10 +72,10 @@ export class GameService {
   //   };
   // }
 
-  getOtherPlayerIdFromAttackDto(attack: AttackDto): number {
+  getOtherPlayerIdFromAttackDto(attack: AttackDto): string {
     const game = GAMES.find((game) => game.idGame === attack.gameId);
 
-    return game.playerShips.find((ship) => ship.indexPlayer !== attack.indexPlayer).indexPlayer;
+    return game?.playerShips?.find((ship) => ship.indexPlayer !== attack.indexPlayer)?.indexPlayer;
   }
 
   // turn(currentPlayer: number): TurnDto {
@@ -84,6 +87,12 @@ export class GameService {
       x: Math.floor(Math.random() * 10),
       y: Math.floor(Math.random() * 10),
     };
+  }
+
+  findGameByUserId(userId: string): string {
+    return GAMES.find((game: Game) => {
+      return game.playerShips.find((ship: PlayerShips) => ship.indexPlayer === userId);
+    })?.idGame;
   }
 }
 

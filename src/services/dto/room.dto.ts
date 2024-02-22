@@ -1,15 +1,15 @@
 import { UserDto } from './user.dto';
 
 export type respRoomDto = {
-  roomId: number,
+  roomId: string,
   roomUsers: UserDto[],
 }
 
 export type createRoomDto = {
-  roomId: number,
+  roomId: string,
   roomUsers: UserDto[],
 }
 
 export type AddToRoomDto = {
-  indexRoom: number,
+  indexRoom: string,
 }

@@ -7,7 +7,7 @@ export type StartedGameDto = {
 export type AddShipsDto = {
   gameId: string,
   ships: ShipDto[];
-  indexPlayer: number, /* id of the player in the current game session */
+  indexPlayer: string, /* id of the player in the current game session */
 }
 
 export type ShipDto = {
@@ -21,17 +21,17 @@ export type AttackDto = {
   gameId: string,
   x: number,
   y: number,
-  indexPlayer: number, /* id of the player in the current game session */
+  indexPlayer: string, /* id of the player in the current game session */
 }
 
 export type RandomAttackDto = {
-  gameId: number,
-  indexPlayer: number, /* id of the player in the current game session */
+  gameId: string,
+  indexPlayer: string, /* id of the player in the current game session */
 }
 
 export type AttackRespDto = {
   position: Coords,
-  currentPlayer: number, /* id of the player in the current game session */
+  currentPlayer: string, /* id of the player in the current game session */
   status: AttackStatus,
 }
 
@@ -41,11 +41,11 @@ export type Coords = {
 }
 
 export type TurnDto = {
-  currentPlayer: number, /* id of the player in the current game session */
+  currentPlayer: string, /* id of the player in the current game session */
 }
 
 export type FinishDto = {
-  winPlayer: number, /* id of the player in the current game session */
+  winPlayer: string, /* id of the player in the current game session */
 }
 
 export type AttackStatus = 'miss' | 'killed' | 'shot';

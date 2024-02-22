@@ -7,7 +7,7 @@ export type RequestedUser = {
 
 export type UserDto = {
   name: string,
-  index: number,
+  index: string,
 }
 
 export type ResponseUser = UserDto & ErrorDto

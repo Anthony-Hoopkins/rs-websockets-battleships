@@ -17,28 +17,28 @@ export type Database = {
 export type DBEntity = User[] | Room[] | Game[] | PlayerShips[] | Winner[];
 
 export type User = {
-  index: number,
+  index: string,
   name: string,
   password?: string,
 }
 
 export type Room = {
-  roomId: number,
+  roomId: string,
   roomUsers: User[],
 }
 
 export type Game = {
   idGame: string,
   playerShips?: PlayerShips[],
-  idPlayer: number,
+  idPlayer: string,
   status: 'created' | 'going' | 'finished'
-  turnId?: number,
+  turnId?: string,
 }
 
 export type PlayerShips = {
   gameId: string,
   ships: Ship[],
-  indexPlayer: number,
+  indexPlayer: string,
 }
 
 export type Ship = {
@@ -75,9 +75,3 @@ function setFakeDataToDb(DB: Database) {
 
   DB[DBEntities.Winners].push(...winners);
 }
-
-// return [
-//   { roomId: 1, roomUsers: [{ name: 'Lev', index: 1 }] },
-//   { roomId: 2, roomUsers: [{ name: 'Kesha', index: 2 }] },
-// ];
-//
