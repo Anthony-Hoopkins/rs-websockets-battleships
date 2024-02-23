@@ -26,6 +26,8 @@ export class RoomService {
       return room.roomUsers.find(roomUser => roomUser.index === user.index);
     });
 
+    console.log(isAlreadyInRoom)
+
     if (!isAlreadyInRoom) {
       ROOMS.push({ roomId, roomUsers: [user] });
 
@@ -58,6 +60,14 @@ export class RoomService {
     const roomIndex = ROOMS.findIndex((room) => {
       return room.roomUsers.find((user) => user.index === index);
     });
+
+    if (roomIndex >= 0) {
+      ROOMS.splice(roomIndex, 1);
+    }
+  }
+
+  closeRoomById(roomId: string): void {
+    const roomIndex = ROOMS.findIndex((room) => room.roomId === roomId);
 
     if (roomIndex >= 0) {
       ROOMS.splice(roomIndex, 1);

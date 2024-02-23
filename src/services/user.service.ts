@@ -21,7 +21,6 @@ export class UserService {
       const index = crypto.randomUUID();
       const newUser = { ...user, index };
       USERS.push(newUser);
-      console.log(USERS); // todo
 
       return { name: newUser.name, index, error: false };
     } else {

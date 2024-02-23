@@ -39,23 +39,23 @@ export class GameService {
   }
 
   attack(attack: AttackDto, isRandom: boolean, defenderId: string): AttackRespDto {
-    const attackPosition = isRandom ? this.getRandomCoords() : { x: attack.x, y: attack.y };
+    const game = this.getGameById(attack.gameId);
+    const boardModel: GameShipsModel = game.models.find((model) => model.indexPlayer === defenderId);
+    const attackPosition = isRandom ? this.getRandomCoords(boardModel) : { x: attack.x, y: attack.y };
 
     if (isRandom) {
       attack.x = attackPosition.x;
       attack.y = attackPosition.y;
     }
 
-    const game = this.getGameById(attack.gameId);
     const status = this.checkAttackStatus(attack, game, defenderId);
 
-    // const attackResp = { position: attackPosition, currentPlayer: defenderId, status };
     const attackResp = { position: attackPosition, currentPlayer: attack.indexPlayer, status };
 
-    if (attackResp.status === 'miss') {
-      game.turnId = defenderId;
-    } else {
+    if (attackResp.status === 'shot' || attackResp.status === 'killed') {
       game.turnId = attack.indexPlayer;
+    } else {
+      game.turnId = defenderId;
     }
 
     return attackResp;
@@ -76,11 +76,14 @@ export class GameService {
     return game?.playerShips?.find((ship) => ship.indexPlayer !== attack.indexPlayer)?.indexPlayer;
   }
 
-  private getRandomCoords(): Coords {
-    return {
-      x: Math.floor(Math.random() * 10),
-      y: Math.floor(Math.random() * 10),
-    };
+  private getRandomCoords(boardModel: GameShipsModel): Coords {
+    let coords = this.generateCoords();
+
+    while (boardModel.shipsMatrix['' + coords.x + coords.y].status !== 'no') {
+      coords = this.generateCoords();
+    }
+
+    return coords;
   }
 
   findGameByUserId(userId: string): string {
@@ -97,7 +100,7 @@ export class GameService {
 
     if (attackedItem.length > 0) {
       if (attackedItem.length === 1) {
-        boardModel.aliveShips = boardModel.aliveShips - 1;
+        boardModel.aliveShips.delete('' + attack.x + attack.y);
 
         return 'killed';
       } else {
@@ -125,29 +128,21 @@ export class GameService {
       boardModel.shipsMatrix[item].status = 'killed';
     });
 
-    boardModel.aliveShips = boardModel.aliveShips - 1;
-
-    console.log('boardModel.aliveShips');
-    console.log(boardModel.aliveShips);
+    boardModel.aliveShips.delete(attackedItem.all[0]);
   }
 
   checkIfGameCompleted(indexPlayer: string, game: Game): boolean {
     const model = game.models.find((model) => model.indexPlayer === indexPlayer);
-    console.log(model?.aliveShips);
 
-    return model?.aliveShips === 0;
+    return Array.from(model?.aliveShips)?.length === 0;
   }
 
   getFieldsAround(position: Coords, game: Game, indexPlayer: string): { missed: Coords[], killed: Coords[] } {
     const model = game.models.find((model) => model.indexPlayer === indexPlayer);
 
-    const shipsMatrix = model.shipsMatrix['' + position.x + position.y];
-    console.log('shipsMatrix');
-    console.log(shipsMatrix);
+    const shipsMatrix = model.shipsMatrix;
 
     const wholeShip = model.shipsMatrix['' + position.x + position.y]?.all || ['' + position.x + position.y];
-    console.log('wholeShip');
-    console.log(wholeShip);
 
     if (wholeShip) {
       const missed: Coords[] = [];
@@ -157,29 +152,41 @@ export class GameService {
         const x = item[0];
         const y = item[1];
 
-        killed.push({ x: Number(x), y: Number(y) })
+        killed.push({ x: Number(x), y: Number(y) });
+        shipsMatrix[item].status = 'killed';
 
-        this.addFieldsAround(x, y, 1, 1, missed, wholeShip);
-        this.addFieldsAround(x, y, 1, 0, missed, wholeShip);
-        this.addFieldsAround(x, y, 1, -1, missed, wholeShip);
+        this.addFieldsAround(x, y, 1, 1, missed, wholeShip, shipsMatrix);
+        this.addFieldsAround(x, y, 1, 0, missed, wholeShip, shipsMatrix);
+        this.addFieldsAround(x, y, 1, -1, missed, wholeShip, shipsMatrix);
 
-        this.addFieldsAround(x, y, 0, 1, missed, wholeShip);
-        this.addFieldsAround(x, y, 0, -1, missed, wholeShip);
+        this.addFieldsAround(x, y, 0, 1, missed, wholeShip, shipsMatrix);
+        this.addFieldsAround(x, y, 0, -1, missed, wholeShip, shipsMatrix);
 
-        this.addFieldsAround(x, y, -1, -1, missed, wholeShip);
-        this.addFieldsAround(x, y, -1, 0, missed, wholeShip);
-        this.addFieldsAround(x, y, -1, 1, missed, wholeShip);
+        this.addFieldsAround(x, y, -1, -1, missed, wholeShip, shipsMatrix);
+        this.addFieldsAround(x, y, -1, 0, missed, wholeShip, shipsMatrix);
+        this.addFieldsAround(x, y, -1, 1, missed, wholeShip, shipsMatrix);
       });
 
       return { missed, killed };
     }
   }
 
-  private addFieldsAround(x: string, y: string, numberX: number, numberY: number, result: any[], wholeShip: string[]): void {
+  private addFieldsAround(x: string, y: string, numberX: number, numberY: number, result: any[], wholeShip: string[], shipsMatrix: { [key: string]: ShipMatrixItem }): void {
     let otherPosition = { x: Number(x) + numberX, y: Number(y) + numberY };
 
     if (!wholeShip.includes('' + otherPosition.x + otherPosition.y)) {
-      result.push(otherPosition)
+      if (shipsMatrix['' + otherPosition.x + otherPosition.y]) {
+        shipsMatrix['' + otherPosition.x + otherPosition.y].status = 'miss';
+      }
+
+      result.push(otherPosition);
     }
+  }
+
+  private generateCoords(): Coords {
+    return {
+      x: Math.floor(Math.random() * 10),
+      y: Math.floor(Math.random() * 10),
+    };
   }
 }

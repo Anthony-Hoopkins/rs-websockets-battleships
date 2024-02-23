@@ -11,7 +11,7 @@ export class GameShipsModel {
   gameId: string;
   indexPlayer: string;
   shipsMatrix: { [key: string]: ShipMatrixItem } = {};
-  aliveShips: number;
+  aliveShips = new Set();
 
   constructor(
     playerShips: PlayerShips,
@@ -23,11 +23,10 @@ export class GameShipsModel {
   }
 
   private makeShipsMatrix(ships: Ship[]): void {
-    this.aliveShips = ships.length;
-
     ships.forEach((ship: Ship) => {
       const length = ship.length;
       const coord = '' + ship.position.x + ship.position.y;
+      this.aliveShips.add(coord);
 
       if (length < 2) {
         this.setValueToMatrix(coord, { length, all: null, status: 'no' });

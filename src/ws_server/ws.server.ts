@@ -46,8 +46,6 @@ export function onConnect(wsClient: CustomWSocket) {
 }
 
 function sendMultipleMessageThenKilledShip(allFields: Coords[], attackerId: string, defenderId: string, status: 'missed' | 'killed') {
-  console.log(allFields);
-
   allFields.forEach((position) => {
     sendMessageByConnectId(MessageTypes.Attack, {
       position,
@@ -57,7 +55,7 @@ function sendMultipleMessageThenKilledShip(allFields: Coords[], attackerId: stri
 
     sendMessageByConnectId(MessageTypes.Attack, {
       position,
-      currentPlayer: defenderId,
+      currentPlayer: attackerId,
       status: status,
     }, defenderId);
   });
@@ -67,8 +65,6 @@ function wsMessageHandler(message: any, wsClient: CustomWSocket) {
 
   try {
     const parsedMessage = JSON.parse(message);
-
-    console.log(parsedMessage);
 
     switch (parsedMessage.type) {
       case MessageTypes.Registration: {
@@ -103,11 +99,13 @@ function wsMessageHandler(message: any, wsClient: CustomWSocket) {
 
       case MessageTypes.AddUserToRoom: {
         const currentUser = userService.getUserById(wsClient.id);
-        const result: any = roomService.addUserToRoom(currentUser, JSON.parse(parsedMessage.data));
         closeUserRoomIfExists(currentUser.index);
+        const result: any = roomService.addUserToRoom(currentUser, JSON.parse(parsedMessage.data));
 
-        if (!result.error) {
+        if (result && !result.error) {
           const newGame = gameService.createNewGame(currentUser.index);
+          roomService.closeRoomById(result?.roomId);
+
           sendMessageToThisConnection(MessageTypes.CreateGame, newGame, wsClient);
 
           const id = roomService.getCompetitorIdFromRoom(currentUser.index, result);
@@ -159,7 +157,11 @@ function wsMessageHandler(message: any, wsClient: CustomWSocket) {
         roomService.addUserToRoom(SIMPLE_BOT, { indexRoom: result.roomId });
 
         const newGame = gameService.createNewGame(currentUser.index);
+        roomService.closeRoomById(result.roomId);
         sendMessageToThisConnection(MessageTypes.CreateGame, newGame, wsClient);
+
+        const rooms = roomService.getAllNotFullRooms();
+        messageToAll(MessageTypes.UpdateRoom, rooms);
 
         gameService.addShipsToGame({ gameId: newGame.idGame, ships: BOT_SHIPS, indexPlayer: SIMPLE_BOT.index });
 
@@ -196,14 +198,7 @@ function wsMessageHandler(message: any, wsClient: CustomWSocket) {
       const attackerId = attack.indexPlayer;
       const defenderId = gameService.getOtherPlayerIdFromAttackDto(attack);
 
-      // const attackResult = gameService.attack(attack as AttackDto, isRandom, attackerId);
       const attackResult: AttackRespDto = gameService.attack(attack as AttackDto, isRandom, defenderId);
-
-      console.log('!!!attackResult:');
-      console.log(attackResult);
-
-      sendMessageByConnectId(MessageTypes.Attack, attackResult, attackerId);
-      sendMessageByConnectId(MessageTypes.Attack, { ...attackResult , currentPlayer: defenderId }, defenderId);
 
       if (attackResult.status === 'killed') {
         const result = gameService.getFieldsAround(attackResult.position, game, defenderId);
@@ -222,6 +217,9 @@ function wsMessageHandler(message: any, wsClient: CustomWSocket) {
 
         return;
       }
+
+      sendMessageByConnectId(MessageTypes.Attack, { ...attackResult , currentPlayer: attackerId }, attackerId);
+      sendMessageByConnectId(MessageTypes.Attack, { ...attackResult , currentPlayer: attackerId }, defenderId);
 
       if (game.turnId === 'bot') {
         return attackAction({ gameId: attack.gameId, indexPlayer: 'bot' }, true);
@@ -242,8 +240,6 @@ const connectionHandler = (ws: any, id: any): void => {
 const messageToAll = (type: MessageTypes, msg: any): void => {
   wsServer.clients.forEach((client: any) => {
     client.send(JSON.stringify({ type, data: JSON.stringify(msg), id: 0 }));
-
-    console.log('messageToAll');
   });
 };
 
