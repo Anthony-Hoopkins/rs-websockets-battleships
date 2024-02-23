@@ -1,13 +1,13 @@
 import { MessageTypes } from '../core/consts/enums/message-types';
 import { UserService } from '../services/user.service';
-import { ResponseUser, UserDto } from '../services/dto/user.dto';
+import { ResponseUser } from '../services/dto/user.dto';
 import { RoomService } from '../services/room.service';
 import { GameService } from '../services/game.service';
 import { WebSocket, WebSocketServer } from 'ws';
 import { WinnerService } from '../services/winner.service';
-import { respRoomDto } from '../services/dto/room.dto';
-import { AddShipsDto, AttackDto } from '../services/dto/game.dto';
+import { AddShipsDto, AttackDto, AttackRespDto, Coords, RandomAttackDto } from '../services/dto/game.dto';
 import { CustomWSocket } from '../core/types/ws.type';
+import { BOT_SHIPS, SIMPLE_BOT } from '../services/bot.service';
 
 let wsServer: WebSocketServer;
 
@@ -20,8 +20,6 @@ export function startWS() {
   const WS_PORT = 3000;
 
   wsServer = new WebSocketServer({ port: WS_PORT });
-  // wsServer = new WebSocketServer(server);
-
   wsServer.on('connection', onConnect);
 
   console.log(`Start WS server on the ${WS_PORT} port!`);
@@ -38,8 +36,30 @@ export function onConnect(wsClient: CustomWSocket) {
     const id = wsClient.id;
     finishIfUserInGame(wsClient, id);
 
-    userService.removeUserById(id);
+    closeUserRoomIfExists(id);
+
     console.log(`User ${userService.getUserById(id)?.name} is disconnected!`);
+    userService.removeUserById(id);
+
+    messageToAll(MessageTypes.UpdateRoom, roomService.getAllNotFullRooms());
+  });
+}
+
+function sendMultipleMessageThenKilledShip(allFields: Coords[], attackerId: string, defenderId: string, status: 'missed' | 'killed') {
+  console.log(allFields);
+
+  allFields.forEach((position) => {
+    sendMessageByConnectId(MessageTypes.Attack, {
+      position,
+      currentPlayer: attackerId,
+      status: status,
+    }, attackerId);
+
+    sendMessageByConnectId(MessageTypes.Attack, {
+      position,
+      currentPlayer: defenderId,
+      status: status,
+    }, defenderId);
   });
 }
 
@@ -73,7 +93,7 @@ function wsMessageHandler(message: any, wsClient: CustomWSocket) {
       case MessageTypes.CreateRoom: {
         const currentUser = userService.getUserById(wsClient.id);
         const result = roomService.createNewRoom(currentUser);
-        sendMessageToThisConnection(MessageTypes.CreateRoom, result, wsClient);
+        sendMessageToThisConnection(MessageTypes.CreateRoom, result.roomId, wsClient);
 
         const rooms = roomService.getAllNotFullRooms();
         messageToAll(MessageTypes.UpdateRoom, rooms);
@@ -84,6 +104,7 @@ function wsMessageHandler(message: any, wsClient: CustomWSocket) {
       case MessageTypes.AddUserToRoom: {
         const currentUser = userService.getUserById(wsClient.id);
         const result: any = roomService.addUserToRoom(currentUser, JSON.parse(parsedMessage.data));
+        closeUserRoomIfExists(currentUser.index);
 
         if (!result.error) {
           const newGame = gameService.createNewGame(currentUser.index);
@@ -121,7 +142,6 @@ function wsMessageHandler(message: any, wsClient: CustomWSocket) {
             ships: anotherShips,
             currentPlayerIndex: anotherShips.indexPlayer,
           };
-          console.log(anotherShipsData);
 
           sendMessageByConnectId(MessageTypes.StartGame, anotherShipsData, anotherShips.indexPlayer);
           gameService.setTurnToGame(data.gameId, currentId);
@@ -131,17 +151,33 @@ function wsMessageHandler(message: any, wsClient: CustomWSocket) {
         break;
       }
 
+      case MessageTypes.SinglePlay: {
+        const currentUser = userService.getUserById(wsClient.id);
+        closeUserRoomIfExists(currentUser.index);
+
+        const result = roomService.createNewRoom(currentUser);
+        roomService.addUserToRoom(SIMPLE_BOT, { indexRoom: result.roomId });
+
+        const newGame = gameService.createNewGame(currentUser.index);
+        sendMessageToThisConnection(MessageTypes.CreateGame, newGame, wsClient);
+
+        gameService.addShipsToGame({ gameId: newGame.idGame, ships: BOT_SHIPS, indexPlayer: SIMPLE_BOT.index });
+
+        break;
+      }
+
       case MessageTypes.Attack: {
-        attackAction(false);
+        attackAction(JSON.parse(parsedMessage.data), false);
 
         break;
       }
 
       case MessageTypes.RandomAttack: {
-        attackAction(true);
+        attackAction(JSON.parse(parsedMessage.data), true);
 
         break;
       }
+
       default:
         console.log('Unknown Type!');
         sendMessageToThisConnection(null, { error: true, errorText: 'Unknown Message Type!' }, wsClient);
@@ -149,8 +185,7 @@ function wsMessageHandler(message: any, wsClient: CustomWSocket) {
         break;
     }
 
-    function attackAction(isRandom: boolean): void {
-      const attack = JSON.parse(parsedMessage.data);
+    function attackAction(attack: AttackDto | RandomAttackDto, isRandom: boolean): void {
       const game = gameService.getGameById(attack.gameId);
 
       if (game.turnId !== attack.indexPlayer) {
@@ -158,44 +193,63 @@ function wsMessageHandler(message: any, wsClient: CustomWSocket) {
         return;
       }
 
-      const attackResult = gameService.attack(attack, isRandom);
-      sendMessageByConnectId(MessageTypes.Attack, attackResult, attack.indexPlayer);
+      const attackerId = attack.indexPlayer;
+      const defenderId = gameService.getOtherPlayerIdFromAttackDto(attack);
 
-      console.log('attack.indexPlayer:');
-      console.log(attack.indexPlayer);
+      // const attackResult = gameService.attack(attack as AttackDto, isRandom, attackerId);
+      const attackResult: AttackRespDto = gameService.attack(attack as AttackDto, isRandom, defenderId);
 
-      const otherId = gameService.getOtherPlayerIdFromAttackDto(attack);
-      console.log('otherId:');
-      console.log(otherId);
+      console.log('!!!attackResult:');
+      console.log(attackResult);
 
-      sendMessageByConnectId(MessageTypes.Turn, { currentPlayer: game.turnId }, attack.indexPlayer);
-      sendMessageByConnectId(MessageTypes.Turn, { currentPlayer: game.turnId }, otherId);
+      sendMessageByConnectId(MessageTypes.Attack, attackResult, attackerId);
+      sendMessageByConnectId(MessageTypes.Attack, { ...attackResult , currentPlayer: defenderId }, defenderId);
+
+      if (attackResult.status === 'killed') {
+        const result = gameService.getFieldsAround(attackResult.position, game, defenderId);
+        sendMultipleMessageThenKilledShip(result.missed, attackerId, defenderId, 'missed');
+        sendMultipleMessageThenKilledShip(result.killed, attackerId, defenderId, 'killed');
+      }
+
+      const isFinished = gameService.checkIfGameCompleted(defenderId, game);
+
+      if (isFinished) {
+        sendMessageByConnectId(MessageTypes.Finish, { winPlayer: attackerId }, attackerId);
+        sendMessageByConnectId(MessageTypes.Finish, { winPlayer: attackerId }, defenderId);
+
+        const winners = winnerService.updateWinners(userService.getUserById(attackerId));
+        messageToAll(MessageTypes.UpdateWinners, winners);
+
+        return;
+      }
+
+      if (game.turnId === 'bot') {
+        return attackAction({ gameId: attack.gameId, indexPlayer: 'bot' }, true);
+      }
+
+      sendMessageByConnectId(MessageTypes.Turn, { currentPlayer: game.turnId }, attackerId);
+      sendMessageByConnectId(MessageTypes.Turn, { currentPlayer: game.turnId }, defenderId);
     }
   } catch (error) {
     console.log('Error', error);
   }
 }
 
-const connectionHandler = (ws: any, id: any) => {
+const connectionHandler = (ws: any, id: any): void => {
   ws.id = id;
 };
 
-const messageToAll = (type: MessageTypes, msg: any) => {
+const messageToAll = (type: MessageTypes, msg: any): void => {
   wsServer.clients.forEach((client: any) => {
     client.send(JSON.stringify({ type, data: JSON.stringify(msg), id: 0 }));
 
-    console.log(messageToAll);
-    console.log(client.id);
+    console.log('messageToAll');
   });
 };
 
-const sendMessageByConnectId = (type: MessageTypes, msg: any, id: string) => {
+const sendMessageByConnectId = (type: MessageTypes, msg: any, id: string): void => {
   wsServer.clients.forEach((client: any) => {
-    console.log(client.id);
-
     if (client.id === id) {
-      console.log('messageToAnother:');
-      console.log(id);
       client.send(JSON.stringify({ type, data: JSON.stringify(msg), id: 0 }));
     }
   });
@@ -205,7 +259,7 @@ const sendMessageToThisConnection = (type: MessageTypes, data: any, ws: WebSocke
   ws.send(JSON.stringify({ type, data: JSON.stringify(data), id: 0 }));
 };
 
-function finishIfUserInGame(wsClient: CustomWSocket, id: string) {
+function finishIfUserInGame(wsClient: CustomWSocket, id: string): void {
   const gameId = gameService.findGameByUserId(id);
 
   if (gameId) {
@@ -216,4 +270,8 @@ function finishIfUserInGame(wsClient: CustomWSocket, id: string) {
     const winners = winnerService.updateWinners(userService.getUserById(winPlayer));
     messageToAll(MessageTypes.UpdateWinners, winners);
   }
+}
+
+function closeUserRoomIfExists(id: string): void {
+  roomService.removeRoomIfHasOwn(id);
 }

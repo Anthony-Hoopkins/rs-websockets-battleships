@@ -20,7 +20,7 @@ export class RoomService {
     }, []);
   }
 
-  createNewRoom(user: UserDto): ErrorResp {
+  createNewRoom(user: UserDto): any {
     const roomId = crypto.randomUUID();
     const isAlreadyInRoom = ROOMS.find((room) => {
       return room.roomUsers.find(roomUser => roomUser.index === user.index);
@@ -29,7 +29,7 @@ export class RoomService {
     if (!isAlreadyInRoom) {
       ROOMS.push({ roomId, roomUsers: [user] });
 
-      return { error: false };
+      return { error: false, roomId };
     }
 
     return { error: true, errorText: 'This user already in room' };
@@ -54,7 +54,7 @@ export class RoomService {
     return room.roomUsers.find((user: UserDto) => user.index !== currentIndex)?.index;
   }
 
-  private removeRoomIfHasOwn(index: string): void {
+  removeRoomIfHasOwn(index: string): void {
     const roomIndex = ROOMS.findIndex((room) => {
       return room.roomUsers.find((user) => user.index === index);
     });

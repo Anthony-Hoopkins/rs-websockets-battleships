@@ -48,4 +48,4 @@ export type FinishDto = {
   winPlayer: string, /* id of the player in the current game session */
 }
 
-export type AttackStatus = 'miss' | 'killed' | 'shot';
+export type AttackStatus = 'miss' | 'killed' | 'shot' | 'no';
