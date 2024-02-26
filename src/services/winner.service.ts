@@ -22,6 +22,8 @@ export class WinnerService {
       WINNERS.push({ name: user.name, wins: 1 });
     }
 
-    return WINNERS;
+    return WINNERS.sort((a: Winner, b: Winner) => {
+       return a.wins < b.wins ? 1 : -1;
+    });
   }
 }

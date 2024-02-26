@@ -71,3 +71,6 @@ Command Description
 `npm run start:dev` | App served @ `http://localhost:8181` with nodemon
 
 `npm run start` | App served @ `http://localhost:8181` without nodemon
+
+
+### Bot win condition: If you want to make Bot win - just shot in one empty place by cool down.
